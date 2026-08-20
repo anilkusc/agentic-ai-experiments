@@ -1,8 +1,24 @@
 import requests
 import json
 from tools.url import search_web, open_url
+from tools.memory import remember, get_memories
+import sqlite3
 OLLAMA_URL = "http://localhost:11434"
 MODEL_NAME = "qwen3:8b"
+
+db = sqlite3.connect("memory.db")
+
+db.execute("""
+CREATE TABLE IF NOT EXISTS memories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    content TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+)
+""")
+
+db.commit()
+
+
 
 def load_skill(name):
     with open(f"skills/{name}.md") as f:
@@ -46,6 +62,40 @@ tools = [
                     }
                 },
                 "required": ["url"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "remember",
+            "description": "Remember a piece of information",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "content": {
+                        "type": "string",
+                        "description": "The information to remember"
+                    }
+                },
+                "required": ["content"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_memories",
+            "description": "Get memories",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "limit": {
+                        "type": "number",
+                        "description": "The number of memories to get"
+                    }
+                },
+                "required": ["limit"]
             }
         }
     }
@@ -96,6 +146,10 @@ def ask_qwen(prompt):
                 result = search_web(**arguments)
             elif name == "open_url":
                 result = open_url(**arguments)
+            elif name == "remember":
+                result = remember(db, **arguments)
+            elif name == "get_memories":
+                result = get_memories(db, **arguments)
             else:
                 result = "Unknown tool"
             print(f"[RESULT] {result}")
@@ -105,7 +159,7 @@ def ask_qwen(prompt):
             })
 
 while True:
-    prompt = input("Enter a prompt: ")
+    prompt = input("\033[31mEnter a prompt: \033[0m")
     if prompt == "exit":
         break
     response = ask_qwen(prompt)
